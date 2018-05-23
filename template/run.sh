@@ -26,7 +26,7 @@ _start() {
     fi
   fi
   echo -ne "   --- Starting Node - $(basename $DATADIR) : "
-  ${PROG} ${1} --data-dir $DATADIR --config-dir $DATADIR >> $DATADIR/stdout.txt 2>> $DATADIR/stderr.txt & echo $! > $DATADIR/${PROG}.pid
+  $BINDIR/${PROG} ${1} --data-dir $DATADIR --config-dir $DATADIR >> $DATADIR/stdout.txt 2>> $DATADIR/stderr.txt & echo $! > $DATADIR/${PROG}.pid
   [ $? -eq 0 ] && echo_s || echo_f
 }
 

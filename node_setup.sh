@@ -123,7 +123,7 @@ source_check () {
   if [ ! -d $SRC_DIR ]; then
     git clone http://github.com/eosio/eos $SRC_DIR --recursive
     cd $SRC_DIR; 
-    git checkout $EOS_RELEASE; 
+    git checkout -f $EOS_RELEASE; 
     git submodule update --recursive; 
     #Set CORE Token Symbol
     CUR_SYM=${CUR_SYM:-"EOS"}
@@ -138,7 +138,7 @@ source_check () {
     cd $SRC_DIR;
     if [ $(git branch | grep $EOS_RELEASE | wc -l) -eq 0 ]; then 
       git checkout master; git pull; 
-      git checkout $EOS_RELEASE; 
+      git checkout -f $EOS_RELEASE; 
       git submodule update --recursive; 
       #Set CORE Token Symbol
       CUR_SYM=${CUR_SYM:-"EOS"}
@@ -212,7 +212,7 @@ do
         -e "s/__PDNAME__/${PNAME}/g" < $DATA_DIR/template/config.ini > $DATA_DIR/td_node_$PNAME/config.ini
     # Set run.sh for BP node
     sed -e "s+__DATA__+$DATA_DIR/td_node_$PNAME+g" \
-        -e "s+__BIN__+$EOS_BIN/nodeos/nodeos+g" \
+        -e "s+__BIN__+$EOS_BIN/nodeos+g" \
         -e "s/__PROG__/nodeos/g"  < $DATA_DIR/template/run.sh > $DATA_DIR/td_node_$PNAME/run.sh
     chmod 0755 $DATA_DIR/td_node_$PNAME/run.sh
     # Copy Default genesis.json to BP node dir
@@ -356,7 +356,7 @@ init_wallet_node () {
           -e "s+__WALLET_DIR__+${WALLET_DIR}+g" < $DATA_DIR/template/wallet.config > $WALLET_DIR/config.ini
   
       sed -e "s+__DATA__+${WALLET_DIR}+g" \
-          -e "s+__BIN__+${EOS_BIN}/keosd/keosd+g" \
+          -e "s+__BIN__+${EOS_BIN}/keosd+g" \
           -e "s/__PROG__/keosd/g" < $DATA_DIR/template/run.sh > $WALLET_DIR/run.sh
       chmod 0755 $WALLET_DIR/run.sh
       echo "  -- Start wallet Node"
@@ -458,6 +458,7 @@ init_boot_node () {
 
   # SET run.sh for boot node
   sed -e "s+__DATA__+$DATA_DIR/boot+g" \
+      -e "s+__BIN__+$EOS_BIN/nodeos+g" \
       -e "s/__PROG__/nodeos/g" < $DATA_DIR/template/run.sh > $DATA_DIR/boot/run.sh
   chmod 0755 $DATA_DIR/boot/run.sh
   # Copy default genesis.json 
