@@ -1,7 +1,7 @@
 #!/bin/bash
 DATADIR=__DATA__
 BINDIR=__BIN__
-PROG=__PROG__
+PROG=nodeos
 
 echo_s ()
 {
@@ -17,7 +17,25 @@ echo_fx ()
   exit 1;
 }
 
+_init_start() {
+  if [ -f ${DATADIR}/${PROG}.pid ]; then
+    _pid=`cat ${DATADIR}/${PROG}.pid`
+    if [ -d "/proc/${_pid}" ]; then
+      echo "   --- $(basename $DATADIR) node is running now."
+      return 1
+    fi
+  fi
+  
+  if [ ! -d ${DATADIR}/blocks ]; then
+    echo -ne "   --- Initial Starting Node - $(basename $DATADIR) : "
+    [ ! -f $DATADIR/genesis.json ] && $BINDIR/${PROG} --data-dir $DATADIR --config-dir $DATADIR --extract-genesis-json $DATADIR/genesis.json
+    $BINDIR/${PROG} --data-dir $DATADIR --config-dir $DATADIR --delete-all-blocks --genesis-json $DATADIR/genesis.json "$@" >> $DATADIR/stdout.txt 2>> $DATADIR/stderr.txt & echo $! > $DATADIR/${PROG}.pid
+  fi
+  [ $? -eq 0 ] && echo_s || echo_f
+}
+
 _start() {
+  _stop
   if [ -f ${DATADIR}/${PROG}.pid ]; then
     _pid=`cat ${DATADIR}/${PROG}.pid`
     if [ -d "/proc/${_pid}" ]; then
@@ -52,8 +70,8 @@ case "$1" in
     stop)
         _stop
         ;;
-    genenesis)
-        _genesis
+    init)
+        _init_start
         ;;
     restart)
         _stop

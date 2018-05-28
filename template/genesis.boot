@@ -9,17 +9,15 @@
     "net_usage_leeway": 500,
     "context_free_discount_net_usage_num": 20,
     "context_free_discount_net_usage_den": 100,
-    "max_block_cpu_usage": 100000,
-    "target_block_cpu_usage_pct": 500,
-    "max_transaction_cpu_usage": 50000,
+    "max_block_cpu_usage": 200000,
+    "target_block_cpu_usage_pct": 100,
+    "max_transaction_cpu_usage": 150000,
     "min_transaction_cpu_usage": 100,
     "max_transaction_lifetime": 3600,
     "deferred_trx_expiration_window": 600,
     "max_transaction_delay": 3888000,
     "max_inline_action_size": 4096,
     "max_inline_action_depth": 4,
-    "max_authority_depth": 6,
-    "max_generated_transaction_count": 16
-  },
-  "initial_chain_id": "0000000000000000000000000000000000000000000000000000000000000000"
+    "max_authority_depth": 6
+  }
 }

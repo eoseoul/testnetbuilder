@@ -7,7 +7,7 @@ You can set Testnet with a simple(?) Setting and configure it to test it.
 In case of EOSeoul portal, we used this test script to configure the BP node and setup.
 
 ### EOS Source information
-* Release : dawn-v4.1.1 release
+* Release : dawn-v4.2.0 release
 * OS : Ubuntu 16.04
 
 ### Quick Start
@@ -140,4 +140,6 @@ Neo EOS> get info
 - setup boot node only : node_setup.sh boot
 - Execute commands on each node of the testnet : ./cle.sh  or  ./td_node_BPNAME/cleos.sh 
 - Testnet BP Register : td_node_BPNAME/regproducer.sh (First Producer registers 200 million - To generate more than 15% of transactions)
+- BP Node initialize : td_node_BPNAME/run.sh init (only first run!)
+- BP Node resync : Remove td_node_BPNAME/blocks, state directory and run command td_node_BPNAME/run.sh init
 ```

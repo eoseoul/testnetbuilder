@@ -129,8 +129,7 @@ source_check () {
     CUR_SYM=${CUR_SYM:-"EOS"}
     if [ $(grep "CORE_SYMBOL_NAME" $SRC_DIR/CMakeLists.txt | grep "set" | grep "$CUR_SYM" | wc -l) -eq 0 ]; then
       echo "  -- Patch CORE Symbol - $CUR_SYM"
-      patch -p0 < $DATA_DIR/SymbolPatch.patch
-      sed -i "s+__SYMBOL__+$CUR_SYM+g" $SRC_DIR/CMakeLists.txt
+       sed -i.bak '16i set( CORE_SYMBOL_NAME "EOS" )' $SRC_DIR/CMakeLists.txt
     fi
     ./eosio_build.sh
     cd -
@@ -144,8 +143,7 @@ source_check () {
       CUR_SYM=${CUR_SYM:-"EOS"}
       if [ $(grep "CORE_SYMBOL_NAME" $SRC_DIR/CMakeLists.txt | grep "set" | grep "$CUR_SYM" | wc -l) -eq 0 ]; then
         echo "  -- Patch CORE Symbol - $CUR_SYM"
-        patch -p0 < $DATA_DIR/SymbolPatch.patch
-        sed -i "s+__SYMBOL__+$CUR_SYM+g" $SRC_DIR/CMakeLists.txt
+        sed -i.bak '16i set( CORE_SYMBOL_NAME "EOS" )' $SRC_DIR/CMakeLists.txt
       fi
       ./eosio_build.sh
     fi
@@ -213,7 +211,7 @@ do
     # Set run.sh for BP node
     sed -e "s+__DATA__+$DATA_DIR/td_node_$PNAME+g" \
         -e "s+__BIN__+$EOS_BIN/nodeos+g" \
-        -e "s/__PROG__/nodeos/g"  < $DATA_DIR/template/run.sh > $DATA_DIR/td_node_$PNAME/run.sh
+        -e "s/__PROG__/nodeos/g"  < $DATA_DIR/template/nodeos.sh > $DATA_DIR/td_node_$PNAME/run.sh
     chmod 0755 $DATA_DIR/td_node_$PNAME/run.sh
     # Copy Default genesis.json to BP node dir
     cp -a $DATA_DIR/template/genesis.json  $DATA_DIR/td_node_$PNAME/genesis.json
@@ -302,7 +300,7 @@ node_control() {
           echo "  -- $PNAME node is already running."
           continue;
         else
-          $DATA_DIR/td_node_${PNAME}/run.sh start
+          $DATA_DIR/td_node_${PNAME}/run.sh $1
         fi
       else
         echo "  --> we're not found to $DATA_DIR/td_node_${PNAME}/run.sh script."
@@ -418,6 +416,12 @@ node_svc_check () {
 }
 
 init_boot_node () {
+
+  # define system account list
+  _SYSTEM_ACCOUNT="eosio.bpay eosio.msig eosio.names eosio.ram eosio.ramfee eosio.saving eosio.stake eosio.token eosio.vpay"
+  # Appointment BP account prefix
+  _AP_PREFIX="appointnode"
+ 
   [ ! -d $KEY_DIR ] && make_dir $KEY_DIR
   echo -ne "  -- Check Boot node : "
   if [ $(node_svc_check "${BOOT_HOST}:${BOOT_HTTP}") -eq 1 ]
@@ -437,8 +441,6 @@ init_boot_node () {
   fi
   echo -ne "  -- Create eosio acount Keys : "
   $CLE create key > $DATA_DIR/boot/boot.bpkey
-  $CLE create key > $DATA_DIR/boot/msig.bpkey
-  $CLE create key > $DATA_DIR/boot/token.bpkey
   [ -f $DATA_DIR/boot/boot.bpkey ] && echo_s || echo_fx
   echo "  -- Create boot config"
   INIT_DATE=$(date +"%Y-%m-01T00:00:00")
@@ -459,14 +461,14 @@ init_boot_node () {
   # SET run.sh for boot node
   sed -e "s+__DATA__+$DATA_DIR/boot+g" \
       -e "s+__BIN__+$EOS_BIN/nodeos+g" \
-      -e "s/__PROG__/nodeos/g" < $DATA_DIR/template/run.sh > $DATA_DIR/boot/run.sh
+      -e "s/__PROG__/nodeos/g" < $DATA_DIR/template/nodeos.sh > $DATA_DIR/boot/run.sh
   chmod 0755 $DATA_DIR/boot/run.sh
   # Copy default genesis.json 
   cp -a $DATA_DIR/boot/genesis.json $DATA_DIR/template/genesis.json
   echo  "  -- Start node : "
-  $DATA_DIR/boot/run.sh start
+  $DATA_DIR/boot/run.sh start --genesis-json $DATA_DIR/boot/genesis.json
   echo "  -- Wait 2 sec..."
-  sleep 2
+  sleep 4
 
   $CLE wallet create > $DATA_DIR/boot/boot.wpk
   echo_ret "  -- Create eosio Wallet : " $?
@@ -474,56 +476,53 @@ init_boot_node () {
   $CLE wallet import "$PRIV_KEY" >> $DATA_DIR/boot/stdout.txt 2>&1
   echo_ret "  -- Import eosio(default) Key : " $?
   
-  PUB_TOKEN=$(cat $DATA_DIR/boot/token.bpkey | grep -i "public" | awk '{print $3}')
-  PRIV_TOKEN=$(cat $DATA_DIR/boot/token.bpkey | grep -i "private" | awk '{print $3}')
-  PUB_MSIG=$(cat $DATA_DIR/boot/msig.bpkey | grep -i "public" | awk '{print $3}')
-  PRIV_MSIG=$(cat $DATA_DIR/boot/msig.bpkey | grep -i "private" | awk '{print $3}')
-
   $CLE set contract eosio $SRC_DIR/build/contracts/eosio.bios/  >> $DATA_DIR/boot/stdout.txt 2>&1
   echo_ret "  -- Set Contract eosio.bios :" $?
 
-  $CLE wallet create -n eosio.token > $DATA_DIR/boot/eosio.token.wpk
-  echo_ret "  -- Create eosio.token Wallet : " $?
- 
-  $CLE wallet import -n eosio.token "$PRIV_TOKEN" >> $DATA_DIR/boot/stdout.txt 2>&1
-  echo_ret "  -- Import eosio.token Key : " $?
+  # Create System Account 
+  for _account_name in $_SYSTEM_ACCOUNT;
+  do
+    $CLE wallet create -n ${_account_name} > $DATA_DIR/boot/${_account_name}.wpk
+    echo_ret "  -- Create ${_account_name} Wallet : " $?
 
-  $CLE create account eosio eosio.token $PUB_TOKEN $PUB_TOKEN >> $DATA_DIR/boot/stdout.txt 2>&1
-  echo_ret "  -- Create eosio.token account in block : " $?
+    $CLE wallet import -n ${_account_name} "$PRIV_KEY" >> $DATA_DIR/boot/stdout.txt 2>&1
+    echo_ret "  -- Import ${_account_name} Key : " $?
 
-  $CLE wallet create -n eosio.msig > $DATA_DIR/boot/eosio.msig.wpk
-  echo_ret "  -- Create eosio.msig Wallet : " $?
-  
-  $CLE wallet import -n eosio.msig "$PRIV_MSIG" >> $DATA_DIR/boot/stdout.txt 2>&1
-  echo_ret "  -- Import eosio.msig Key : " $?
+    $CLE create account eosio ${_account_name} $PUB_KEY $PUB_KEY >> $DATA_DIR/boot/stdout.txt 2>&1
+    echo_ret "  -- Create ${_account_name} account in block : " $?
 
-  $CLE create account eosio eosio.msig $PUB_MSIG $PUB_MSIG >> $DATA_DIR/boot/stdout.txt 2>&1
-  echo_ret "  -- Create eosio.msig account in block : " $?
+    # Set Privilege to system account.
+    $CLE push action eosio setpriv '{"account":"'${_account_name}'","is_priv":1}' -p eosio >> $DATA_DIR/boot/stdout.txt 2>&1
+    echo_ret "  -- Set Privileges ${_account_name} : " $?
+  done
 
+  # Regist contracts
   $CLE set contract eosio.token $SRC_DIR/build/contracts/eosio.token/ -p eosio.token  >> $DATA_DIR/boot/stdout.txt 2>&1
   echo_ret "  -- Set Contract eosio.token :" $?
 
   $CLE set contract eosio.msig $SRC_DIR/build/contracts/eosio.msig/ -p eosio.msig  >> $DATA_DIR/boot/stdout.txt 2>&1
   echo_ret "  -- Set Contract eosio.msig :" $?
- 
+  
+  # Create Token
   $CLE push action eosio.token create '[ "eosio", "10000000000.0000 '$CUR_SYM'", 0, 0, 0]' -p eosio.token  >> $DATA_DIR/boot/stdout.txt 2>&1
   echo_ret "  -- Create EOS Token :" $?
 
+  # Issue Token
   $CLE push action eosio.token issue '["eosio","1000000000.0000 '$CUR_SYM'","Inittialize EOS Token"]' -p eosio  >> $DATA_DIR/boot/stdout.txt 2>&1
   echo_ret "  -- Issue EOS Token to eosio :" $?
 
-    # Set Appointment Node on bootnode (it's for test only)
+  # Set Appointment Node on bootnode (it's for test only)
   printf '{\n  "version": "%s",\n  "schedule": [\n' $(date +%s) > $BP_PROD 
   for INF in a b c d e f g h i j k l m n o p q r s t u;do
 
-    #$CLE system newaccount eosio apnode.${INF} ${PUB_KEY} --stake-net "1000.0000 $CUR_SYM" --stake-cpu "1000.0000 $CUR_SYM" --transfer  >> $DATA_DIR/boot/stdout.txt 2>&1
-    $CLE create account eosio apnode.${INF} ${PUB_KEY} ${PUB_KEY} >> $DATA_DIR/boot/stdout.txt 2>&1
-    echo_ret "   --- Create Appointment producer node account - apnode.${INF} : " $?
+    #$CLE system newaccount eosio ${_AP_PREFIX}${INF} ${PUB_KEY} --stake-net "1000.0000 $CUR_SYM" --stake-cpu "1000.0000 $CUR_SYM" --transfer  >> $DATA_DIR/boot/stdout.txt 2>&1
+    $CLE create account eosio ${_AP_PREFIX}${INF} ${PUB_KEY} ${PUB_KEY} >> $DATA_DIR/boot/stdout.txt 2>&1
+    echo_ret "   --- Create Appointment producer node account - ${_AP_PREFIX}${INF} : " $?
 
     if [ $INF == "u" ]; then 
-      printf '    {"producer_name":"%s","block_signing_key":"%s"}\n' apnode.${INF} ${PUB_KEY} >> $BP_PROD
+      printf '    {"producer_name":"%s","block_signing_key":"%s"}\n' ${_AP_PREFIX}${INF} ${PUB_KEY} >> $BP_PROD
     else
-      printf '    {"producer_name":"%s","block_signing_key":"%s"},\n' apnode.${INF} ${PUB_KEY} >> $BP_PROD
+      printf '    {"producer_name":"%s","block_signing_key":"%s"},\n' ${_AP_PREFIX}${INF} ${PUB_KEY} >> $BP_PROD
     fi
   done
   echo "  ]}" >> $BP_PROD
@@ -532,18 +531,9 @@ init_boot_node () {
   bp_action
   echo -n "  -- Wait Appointment BP Node turn : "
   while true; do
-    [ $(tail -n 2 $DATA_DIR/boot/stderr.txt | grep -e "signed by apnode\.[a-z]" | wc -l ) -ne 0 ] && break;
+    [ $(tail -n 2 $DATA_DIR/boot/stderr.txt | grep -e "signed by ${_AP_PREFIX}[a-z]" | wc -l ) -ne 0 ] && break;
   done
   echo_s
-
-  $CLE push action eosio setpriv '{"account":"eosio","is_priv":1}' -p eosio >> $DATA_DIR/boot/stdout.txt 2>&1
-  echo_ret "  -- Set Privileges on eosio : " $?
-
-  $CLE push action eosio setpriv '{"account":"eosio.msig","is_priv":1}' -p eosio >> $DATA_DIR/boot/stdout.txt 2>&1
-  echo_ret "  -- Set Privileges on eosio.msig : " $?
-
-  $CLE push action eosio setpriv '{"account":"eosio.token","is_priv":1}' -p eosio >> $DATA_DIR/boot/stdout.txt 2>&1
-  echo_ret "  -- Set Privileges on eosio.token : " $?
 
   # make cleos.sh
   echo '#!/bin/bash
@@ -551,9 +541,10 @@ init_boot_node () {
   chmod +x $DATA_DIR/boot/cleos.sh
 
   # Set System Contract on eosio
-  $CLE set contract eosio $SRC_DIR/build/contracts/eosio.system -p eosio >> $DATA_DIR/boot/stdout.txt 2>&1
+  $CLE set contract eosio $SRC_DIR/build/contracts/eosio.system -x 300 -p eosio >> $DATA_DIR/boot/stdout.txt 2>&1
   if [ $? -eq 1 ]; then
-    $CLE set contract eosio $SRC_DIR/build/contracts/eosio.system -p eosio >> $DATA_DIR/boot/stdout.txt 2>&1
+    sleep 2;
+    $CLE set contract eosio $SRC_DIR/build/contracts/eosio.system -x 300 -p eosio >> $DATA_DIR/boot/stdout.txt 2>&1
     echo_ret "  -- Update eosio.system Contracts for eosio : " $?
   else
     echo_ret "  -- Update eosio.system Contracts for eosio : " 0
@@ -563,8 +554,6 @@ init_boot_node () {
   [ $LOAD_SNAPSHOT -eq 1 ] && migration_snapshot
   echo
 
-
-  echo "================================================================================"
   echo "  -- Check $CUR_SYM Token"
   echo "================================================================================"
   echo " Account : eosio / currency : $($CLE get currency balance eosio.token eosio $CUR_SYM)"
@@ -670,7 +659,7 @@ case "$1" in
         init_wallet_node
 	init_boot_node
         init_bp_node
-        node_control start
+        node_control init
         echo_end
         ;;
     boot)

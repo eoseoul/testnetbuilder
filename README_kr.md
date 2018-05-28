@@ -6,6 +6,10 @@ EOS Private Network Tester는 DAPP을 개발하는 개발자, EOS Booting부터 
 간단한(?) 설정을 통해 Testnet을 구성하고 이를 테스트 할 수 있도록 구성되었습니다. 
 실제 EOSeoul의 Portal의 경우 이 테스트 스크립트를 이용하여 Booting하고 BP 노드를 구성하여 사용 하고 있습니다. 
 
+### Announce
+[dawn-v4.2.0]: https://github.com/EOSIO/eos/releases "DAWN-4.2.0" 릴리즈가 발표되었습니다.
+Nodeos 실행에 대한 부분과 관련하여 변경된 내용이 있으므로, 꼭 릴리즈 업데이트 내용을 확인하여 주시기 바랍니다. 
+
 ### EOS Source information
 * Release : dawn-v4.1.1 release
 * OS : Ubuntu 16.04
@@ -128,6 +132,8 @@ Neo EOS> get info
 - 테스트넷 boot 노드만 실행 : node_setup.sh boot
 - 테스트넷의 각 노드들에 명령어 실행 : ./cle.sh 또는 td_node_BPNAME/cleos.sh 실행
 - 테스트넷 BP Node 실행 후 Producer 등록 : td_node_BPNAME/regproducer.sh (첫번째 Producer는 2억개를 등록함 - 15% 이상 Transaction 발생 위해)
+- 테스트넷 BP Node 초기화 : td_node_BPNAME/run.sh init (첫 실행시에만 사용합니다.)
+- 테스트넷 BP Node 리셋 : td_node_BPNAME/blocks, state 디렉토리 삭제 후 td_node_BPNAME/run.sh init 명령을 실행 합니다. 
 ```
 
 ### Trouble Shooting
