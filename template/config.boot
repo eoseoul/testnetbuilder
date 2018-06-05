@@ -1,34 +1,47 @@
-# Default config
-genesis-json = ./genesis.json
-blocks-dir = "blocks"
-chain-state-db-size-mb = 8192
-wasm-runtime=binaryen
-access-control-allow-origin = *
-access-control-allow-credentials = false
-reversible-blocks-db-size-mb=4096
-contracts-console=true
-send-whole-blocks = 1
-allowed-connection = any
-log-level-net-plugin = info
-max-clients = 35
-connection-cleanup-period = 30
-network-version-match = 0
-enable-stale-production = true
-required-participation = 33
-# peer-key =
-# peer-private-key =
 
-# Connection config
-http-server-address = 0.0.0.0:__BOOT_HTTP__
+### Defualt config 
+blocks-dir = "blocks"
+genesis-json = ./genesis.json
+chain-state-db-size-mb = 2048
+reversible-blocks-db-size-mb = 340
+contracts-console = false
+access-control-allow-credentials = false
+sync-fetch-span = 100
+max-implicit-request = 1500
+
+# actor-whitelist =
+# actor-blacklist =
+# contract-whitelist =
+# contract-blacklist =
+# filter-on =
+# https-client-root-cert =
+
+https-client-validate-peers = 1
+http-server-address = 127.0.0.1:__BOOT_HTTP__
 p2p-listen-endpoint = 0.0.0.0:__BOOT_P2P__
 p2p-server-address = __BOOT_HOST__:__BOOT_P2P__
-agent-name = "EOS Boot Node"
-
+p2p-max-nodes-per-host = 1
 #__BOOT_PEER__
 #__P2P_PEER_LIST__
 
+# peer-key =
+# peer-private-key =
+
+agent-name = "EOS BOOT NODE"
+allowed-connection = any
+max-clients = 120
+connection-cleanup-period = 30
+network-version-match = 1
+
+enable-stale-production = true
+#pause-on-startup = false
+max-transaction-time = 30
+max-irreversible-block-age = -1
+
 # Enable block production with the testnet producers
 producer-name = eosio
+signature-provider = __PUBKEY__=KEY:__PRIVKEY__
+private-key = ["__PUBKEY__","__PRIVKEY__"]
 # Appointment Producer
 producer-name = appointnodea
 producer-name = appointnodeb
@@ -52,9 +65,17 @@ producer-name = appointnodes
 producer-name = appointnodet
 producer-name = appointnodeu
 
-private-key = ["__PUBKEY__","__PRIVKEY__"]
-# Plugin(s) to enable, may be specified multiple times
-plugin = eosio::producer_plugin
-plugin = eosio::chain_api_plugin
-plugin = eosio::http_plugin
+# Wallet config
+keosd-provider-timeout = 5
+txn-reference-block-lag = 0
+wallet-dir = "."
+unlock-timeout = 900
 
+# BNET Config
+#__BNET_PLUGIN__
+
+# eosio-key =
+# plugin =
+plugin = eosio::chain_api_plugin
+plugin = eosio::history_api_plugin
+plugin = eosio::http_plugin

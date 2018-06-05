@@ -7,8 +7,9 @@ You can set Testnet with a simple(?) Setting and configure it to test it.
 In case of EOSeoul portal, we used this test script to configure the BP node and setup.
 
 ### EOS Source information
-* Release : dawn-v4.2.0 release
+* Release : v1.0.1
 * OS : Ubuntu 16.04
+* Requirement : jq [download](https://stedolan.github.io/jq/download/)
 
 ### Quick Start
 ```

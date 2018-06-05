@@ -53,18 +53,6 @@ echo -e '
 }
 
 echo_end () {
-if [ $LOAD_SNAPSHOT -eq 1 ]; then
-echo -e "
-################################################################################
-#                                                                              #
-#   \033[1;33mAbout Snapshot migration\033[0m                                                   #
-#                                                                              #
-#   We have migrated accounts based on Snapshot files.                         #
-#   For information on migrated accounts, please refer to the                  #
-#   file \"boot / migration_YYYYMMDD.csv\".                                      #
-#                                                                              #
-################################################################################"
-fi
 echo "
 ################################################################################
 #                                                                              #
@@ -96,7 +84,16 @@ function ProgressBar {
 
     printf "\r   Progress : [${_fill// /#}${_empty// /-}] ${_progress}%% (${1}/${2})"
 }
-#"
+
+function ProgressBar_verify {
+    let _progress=(${1}*100/${2}*100)/100
+    let _done=(${_progress}*4)/10
+    let _left=40-$_done
+    _fill=$(printf "%${_done}s")
+    _empty=$(printf "%${_left}s")
+
+    printf "\r   Progress : [${_fill// /#}${_empty// /-}] ${_progress}%% (${1}/${2}) (Success: ${3} / Failed: ${4} / Diff Amount : ${5})"
+}
 
 check_os () {
   echo -ne "  -- Check OS : "
@@ -112,6 +109,13 @@ check_os () {
 }
 
 source_check () { 
+  echo "  -- Check Requried package"
+  DPKG="jq" 
+  for pkg in $DPKG; do 
+    if [ -z $( dpkg -s jq 2>/dev/null | grep "Status" | awk '{print $4}') ]; then
+      sudo apt-get -y install $pkg
+    fi
+  done
   echo "  -- Check EOS Source file"
   rp_chk=$(git ls-remote $GIT_REPO |  egrep "(heads|tags)/$EOS_RELEASE" | wc -l)
   if [ $rp_chk -eq 0 ] 
@@ -122,7 +126,7 @@ source_check () {
 
   if [ ! -d $SRC_DIR ]; then
     git clone http://github.com/eosio/eos $SRC_DIR --recursive
-    cd $SRC_DIR; 
+    pushd $SRC_DIR > /dev/null; 
     git checkout -f $EOS_RELEASE; 
     git submodule update --recursive; 
     #Set CORE Token Symbol
@@ -132,9 +136,9 @@ source_check () {
        sed -i.bak '16i set( CORE_SYMBOL_NAME "EOS" )' $SRC_DIR/CMakeLists.txt
     fi
     ./eosio_build.sh
-    cd -
+    popd > /dev/null
   else
-    cd $SRC_DIR;
+    pushd $SRC_DIR > /dev/null ; 
     if [ $(git branch | grep $EOS_RELEASE | wc -l) -eq 0 ]; then 
       git checkout master; git pull; 
       git checkout -f $EOS_RELEASE; 
@@ -147,7 +151,7 @@ source_check () {
       fi
       ./eosio_build.sh
     fi
-    cd -
+    popd > /dev/null 
   fi
 }
 
@@ -161,8 +165,6 @@ make_dir () {
     echo "[ Skip ]"
   fi
 }
-
-
 
 init_bp_node () {
 echo "  -- Initialize BP node"
@@ -219,9 +221,12 @@ do
       # DEFINE PEER Informations
       [ -z $PPL ] && PPL="p2p-peer-address=${HOSTNAME}:${P2P_PORT}" || PPL="$PPL\np2p-peer-address=${HOSTNAME}:${P2P_PORT}"
     fi
+    if [ $BNET_USE == 1 ]; then
+      [ -z $BNETLIST ] && BNETLIST="bnet-connect=${HOSTNAME}:${BNET_PORT}" || BNETLIST="$BNETLIST\nbnet-connect=${HOSTNAME}:${BNET_PORT}"
+    fi
     # Create EOS BP Account on EOS Blockchain
     echo -ne "  -- Create account - $PNAME : "
-    $CLE system newaccount --stake-net "10000.0000 ${CUR_SYM}" --stake-cpu "10000.0000 ${CUR_SYM}" eosio $PNAME $PUB_KEY $PUB_KEY >> $DATA_DIR/td_node_$PNAME/stdout.txt 2>&1
+    $CLE system newaccount --buy-ram-kbytes 1024 --stake-net "10000.0000 ${CUR_SYM}" --stake-cpu "10000.0000 ${CUR_SYM}" eosio $PNAME $PUB_KEY $PUB_KEY >> $DATA_DIR/td_node_$PNAME/stdout.txt 2>&1
     [ $? -eq 0 ] && echo_s || echo_f
     
     echo -ne "  -- Create Wallet : "
@@ -234,10 +239,6 @@ do
 
     echo -ne "  -- Initailize Coin setting (100000 $CUR_SYM) : "
     $CLE push action eosio.token transfer '["eosio","'$PNAME'","100000.0000 '${CUR_SYM}'","Init Coin"]' -p eosio  >> $DATA_DIR/td_node_$PNAME/stdout.txt 2>&1
-    [ $? -eq 0 ] && echo_s || echo_f
-
-    echo -ne "  -- Default Ram Staking (10000 $CUR_SYM) : "
-    $CLE system buyram eosio $PNAME "10000.0000 $CUR_SYM" -p eosio >> $DATA_DIR/td_node_$PNAME/stdout.txt 2>&1
     [ $? -eq 0 ] && echo_s || echo_f
 
     # make cleos.sh
@@ -259,7 +260,8 @@ do
       echo '$_CLE system delegatebw '$PNAME' '$PNAME' "10000.0000 '$CUR_SYM'" "10000.0000 '$CUR_SYM'" --transfer -p '$PNAME'' >> $DATA_DIR/td_node_$PNAME/regproducer.sh
     fi
     echo '	sleep 0.5
-	$_CLE system voteproducer prods '$PNAME' '$PNAME'' >> $DATA_DIR/td_node_$PNAME/regproducer.sh
+	$_CLE system voteproducer prods '$PNAME' '$PNAME'
+        $_CLE system listproducers' >> $DATA_DIR/td_node_$PNAME/regproducer.sh
     chmod u+x $DATA_DIR/td_node_$PNAME/regproducer.sh
   fi
 done
@@ -269,8 +271,18 @@ for((x=1;x<=${#PDNAME[@]};x++));
 do
   PNAME=$( awk -F"|" '{print $1}' <<< ${PDNAME[$x]})
   perl -p  -i -e "s/#__P2P_PEER_LIST__/$PPL/g" $DATA_DIR/td_node_$PNAME/config.ini
+  # Check BNET Enable
+  if [ $BNET_USE -eq 1 ]
+  then
+    BNET_THREAD=$(($(cat /proc/cpuinfo | grep processor | wc -l)/2))
+    [ $BNET_THREAD -eq 0 ] && BNET_THREAD=1
+    echo 'plugin = eosio::bnet_plugin
+bnet-endpoint = 0.0.0.0:'$BNET_PORT'
+bnet-threads = '$BNET_THREAD'
+'$BNETLIST'
+bnet-no-trx = false' >> $DATA_DIR/boot/config.ini
+  fi
 done
-
 }
 
 bp_action() {
@@ -363,10 +375,54 @@ init_wallet_node () {
   fi 
 }
 
-migration_snapshot() {
+migration_fastsnap() {
+  echo "  -- Migration ERC-20 Token to EOS Coin"
+  global_param=$($CLE get table eosio eosio global | jq '.rows[0]')
+  echo '{"params":'$(echo $global_param | jq '.max_block_cpu_usage=100000000 | .max_transaction_cpu_usage=99999899')'}' > $DATA_DIR/boot/mig_tmp.json
+  $CLE push action eosio setparams $DATA_DIR/boot/mig_tmp.json -p eosio >> $DATA_DIR/boot/stdout.txt 2>&1
   CNT=0
+  TR_SUM=0
+  TRX_LIMIT=90
+  TMP_KEY="EOS53Vfu5SoZLKfFDL9DeUyJaHBPSuCXNwhsAUnkzgsB5qMQQcxJY"
+  TMP_ACCOUNT="tmpaccountaa"
+  ACT_TEMPLATE=$($CLE system newaccount eosio $TMP_ACCOUNT $TMP_KEY $TMP_KEY --stake-net "0.4500 $CUR_SYM" --stake-cpu "0.4500 $CUR_SYM" --buy-ram-kbytes 8 -j -d -s 2>/dev/null| jq 'del(.actions) | .actions=[]' 2>&1)
   if [ -f $SNAPSHOT_FILE ] 
   then
+    [ -z $RECHARGE ] && RECHARGE=0
+    T_END=$(cat $SNAPSHOT_FILE | wc -l)
+    [ $SNAPSHOT_BREAK -ne 0 ] && T_END=$SNAPSHOT_BREAK
+    while IFS=, read ERCKEY EOS_ACCOUNT EOS_PUBKEY AMOUNT; do
+      ((CNT++))
+      # Make TRX json
+      ACT=$($CLE system newaccount eosio $EOS_ACCOUNT $EOS_PUBKEY $EOS_PUBKEY --stake-net "0.4500 $CUR_SYM" --stake-cpu "0.4500 $CUR_SYM" --buy-ram-kbytes 8 -j -d -s 2>/dev/null| jq -c '.actions' )
+      TR_ACT=$($CLE push action eosio.token transfer '["eosio","'$EOS_ACCOUNT'","'$AMOUNT' '$CUR_SYM'","Snapshot migration - eosio to '$EOS_ACCOUNT'"]' -p eosio -j -d -x 2>/dev/null | jq -c '.actions')
+      ACT_TEMPLATE=$(echo $ACT_TEMPLATE | jq '.actions+='$ACT )
+      ACT_TEMPLATE=$(echo $ACT_TEMPLATE | jq '.actions+='$TR_ACT )
+
+      if [ $(echo $CNT%$TRX_LIMIT|bc) -eq 0 ];then
+        echo "$ACT_TEMPLATE" > $DATA_DIR/boot/mig_tmp.json
+        $CLE sign -k $PRIV_KEY -p $DATA_DIR/boot/mig_tmp.json >> $DATA_DIR/boot/fast_migration.log 2>&1 &
+
+        ACT_TEMPLATE=$($CLE system newaccount eosio $TMP_ACCOUNT $TMP_KEY $TMP_KEY --stake-net "0.4500 $CUR_SYM" --stake-cpu "0.4500 $CUR_SYM" --buy-ram-kbytes 8 -j -d -s 2>/dev/null| jq 'del(.actions) | .actions=[]' 2>&1)
+      fi
+      ProgressBar ${CNT} ${T_END}
+      [ $SNAPSHOT_BREAK -eq $CNT ] && break;
+    done < <( cat $SNAPSHOT_FILE | sed "s/\"//g" )
+    # Last Commit
+    $CLE sign -k $PRIV_KEY -p "$ACT_TEMPLATE" >> $DATA_DIR/boot/fast_migration.log 2>&1
+    echo
+    echo
+    rm -f $DATA_DIR/boot/mig_tmp.json
+  fi
+}
+
+
+migration_snapshot() {
+  CNT=0
+  TR_SUM=0
+  if [ -f $SNAPSHOT_FILE ] 
+  then
+    [ -z $RECHARGE ] && RECHARGE=0
     T_END=$(cat $SNAPSHOT_FILE | wc -l)
     [ $SNAPSHOT_BREAK -ne 0 ] && T_END=$SNAPSHOT_BREAK
     echo "  -- Migration ERC-20 Token to EOS Coin"
@@ -374,34 +430,190 @@ migration_snapshot() {
     echo "     > tail -f $DATA_DIR/boot/migration.log"
     sleep 1
     echo "EOS Account,EOS Public Key,EOS Balacne,ERC-20 KEy" > $DATA_DIR/boot/migration_$(date +%Y%m%d).csv
-    cat $SNAPSHOT_FILE | sed "s/\"//g" | while IFS=, read ERCKEY EOS_PUBKEY AMOUNT; do
+    while IFS=, read ERCKEY EOS_ACCOUNT EOS_PUBKEY AMOUNT; do
       ((CNT++))
-      [ $SNAPSHOT_BREAK -eq $CNT ] && break;
-      ProgressBar ${CNT} ${T_END}
-      while true; do
-        R_PRE=$(tr -cd 'abcdefghijklmnopqrstuvwxyz12345' < /dev/urandom | fold -w 6 | head -n1)a
-        $CLE get account $SNAPSHOT_ACCOUNT_PREFIX$R_PRE >> /dev/null 2>&1
-        [ $? -eq 1 ] && break;
-      done
-      # Snapshot account staked amount value checker
-      echo -ne "   --- Create snapshot account - $SNAPSHOT_ACCOUNT_PREFIX$R_PRE : "  >> $DATA_DIR/boot/migration.log 2>&1 
-      $CLE system newaccount eosio $SNAPSHOT_ACCOUNT_PREFIX$R_PRE $EOS_PUBKEY $EOS_PUBKEY --stake-net "1000.0000 $CUR_SYM" --stake-cpu "1000.0000 $CUR_SYM" >> $DATA_DIR/boot/stdout.txt 2>&1
+      # Get past currency balance from eosio
+      PAST_BALANCE=$($CLE get currency balance eosio.token eosio | sed "s/ EOS//g")
+      # Purchase the CPU, Bandwidth, and Ram required to create an account using the eosio account.
+      echo -ne "   --- Create snapshot account - $EOS_ACCOUNT : "  >> $DATA_DIR/boot/migration.log 2>&1 
+      $CLE system newaccount eosio $EOS_ACCOUNT $EOS_PUBKEY $EOS_PUBKEY --stake-net "0.4500 $CUR_SYM" --stake-cpu "0.4500 $CUR_SYM" --buy-ram-kbytes 8 >> $DATA_DIR/boot/stdout.txt 2>&1 
       [ $? -eq 0 ] && echo_s >> $DATA_DIR/boot/migration.log  || echo_f >> $DATA_DIR/boot/migration.txt
-  
+
+      # Get now currency balance from eosio
+      NOW_BALANCE=$($CLE get currency balance eosio.token eosio | sed "s/ EOS//g")
+      DIF_BALANCE=$(echo "scale=5; $PAST_BALANCE - $NOW_BALANCE" | bc)
+      RECHARGE=$(echo "scale=5;$RECHARGE + $DIF_BALANCE" | bc)
+      echo  "    ---- EOSIO Balance change : $PAST_BALANCE EOS -> $NOW_BALANCE EOS (Out $DIF_BALANCE EOS / Total -$RECHARGE EOS)" >> $DATA_DIR/boot/migration.txt
       # Migration EOS amount to EOS Account
-      echo -ne "   --- Migration EOS Token to EOS Coin - $SNAPSHOT_ACCOUNT_PREFIX$R_PRE : " >> $DATA_DIR/boot/migration.log 2>&1 
-      $CLE push action eosio.token transfer '["eosio","'$SNAPSHOT_ACCOUNT_PREFIX$R_PRE'","'$AMOUNT' '$CUR_SYM'","Snapshot migration - eosio to '$SNAPSHOT_ACCOUNT_PREFIX$R_PRE'"]' -p eosio >> $DATA_DIR/boot/stdout.txt 2>&1 
+      echo $CLE push action eosio.token transfer '["eosio","'$EOS_ACCOUNT'","'$AMOUNT' '$CUR_SYM'","Snapshot migration - eosio to '$EOS_ACCOUNT'"]' -p eosio >> $DATA_DIR/boot/stdout.txt 2>&1 
+      $CLE push action eosio.token transfer '["eosio","'$EOS_ACCOUNT'","'$AMOUNT' '$CUR_SYM'","Snapshot migration - eosio to '$EOS_ACCOUNT'"]' -p eosio >> $DATA_DIR/boot/stdout.txt 2>&1 
       [ $? -eq 0 ] && echo_s >> $DATA_DIR/boot/migration.log  || echo_f >> $DATA_DIR/boot/migration.txt
-  
-      # Set Priv to EOS Migration Account
-      #echo -ne  "   --- Set Privileges on $SNAPSHOT_ACCOUNT_PREFIX$R_PRE : " >> $DATA_DIR/boot/migration.log 2>&1 
-      #$CLE push action eosio setpriv '{"account":"'$SNAPSHOT_ACCOUNT_PREFIX$R_PRE'","is_priv":1}' -p eosio >> $DATA_DIR/boot/migration.log 2>&1
-      #[ $? -eq 0 ] && echo_s >> $DATA_DIR/boot/migration.log  || echo_f >> $DATA_DIR/boot/migration.txt
-      _NOW_AMOUNT=$($CLE get currency balance eosio.token $SNAPSHOT_ACCOUNT_PREFIX$R_PRE "SYS")
-      echo "$SNAPSHOT_ACCOUNT_PREFIX$R_PRE,$EOS_PUBKEY,$AMOUNT,$_NOW_AMOUNT,$ERCKEY" >> $DATA_DIR/boot/migration_$(date +%Y%m%d).csv
-      unset _STAKED _STAKE_CPU _STAKE_NET
-    done
+
+      TR_SUM=$(echo "scale=5;$TR_SUM+$AMOUNT" | bc)
+      _NOW_AMOUNT=$($CLE get currency balance eosio.token $EOS_ACCOUNT $CUR_SYM | sed "s/ EOS//g")
+      ProgressBar ${CNT} ${T_END} ${DIF_BALANCE} ${RECHARGE}
+      echo "$EOS_ACCOUNT,$EOS_PUBKEY,$AMOUNT,$_NOW_AMOUNT,$ERCKEY" >> $DATA_DIR/boot/migration_$(date +%Y%m%d).csv
+      [ $SNAPSHOT_BREAK -eq $CNT ] && break;
+    done < <( cat $SNAPSHOT_FILE | sed "s/\"//g" )
+    echo;echo
+    echo -ne "  -- Recharge used coin for create migration accounts (${RECHARGE} ${CUR_SYM}) : "
+    $CLE push action eosio.token issue '["eosio","'${RECHARGE}' '${CUR_SYM}'" "Recharge EOS token for create account used"]' -p eosio >> $DATA_DIR/boot/stdout.txt 2>&1
+    [ $? -eq 0 ] && echo_s 
+    echo
+    echo "################################################################################"
+    echo 
+    echo "   - Snapshot cccount count   : $(cat $SNAPSHOT_FILE | wc -l)"
+    echo "   - Migration account count  : ${CNT} "
+    echo "   - Used balance for create  : $RECHARGE EOS"
+    echo "   - Transfer amount          : ${TR_SUM}"
+    echo "   - EOSIO Account Balance    : $($CLE get currency balance eosio.token eosio EOS)"
+    echo "   - Migration Verify DIFF    : $DIF_BALANCE EOS"
+    echo 
+    echo "################################################################################"a
+    echo
+    echo
+    echo -e "
+    ################################################################################
+    #                                                                              #
+    #   \033[1;33mAbout Snapshot migration\033[0m                                                   #
+    #                                                                              #
+    #   We have migrated accounts based on Snapshot files.                         #
+    #   For information on migrated accounts, please refer to the                  #
+    #   file \"boot / migration_YYYYMMDD.csv\".                                      #
+    #                                                                              #
+    ################################################################################"
   fi
+}
+
+migration_verify() {
+  CNT=0
+  S_CNT=0
+  F_CNT=0
+  S_AMT=0
+  C_AMT=0
+  if [ -f $SNAPSHOT_FILE ] 
+  then
+    T_END=$(cat $SNAPSHOT_FILE | wc -l)
+    [ $SNAPSHOT_BREAK -ne 0 ] && T_END=$SNAPSHOT_BREAK
+    echo "  -- Migration verify"
+    while IFS=, read ERCKEY EOS_ACCOUNT EOS_PUBKEY AMOUNT; do
+      ((CNT++))
+      # Get past currency balance from eosio
+      verify_balance=$($CLE get currency balance eosio.token $EOS_ACCOUNT | sed "s/ EOS//g")
+      if [ "$verify_balance" == "$AMOUNT" ]; then
+        ((S_CNT++))
+      else 
+        ((F_CNT++))
+      fi
+      C_AMT=$(echo "scale=5;$S_AMT + $verify_balance" | bc)
+      S_AMT=$(echo "scale=5;$S_AMT + $AMOUNT" | bc)
+      AMT_DIF=$(echo "scale=5;$S_AMT - $C_AMT"| bc)
+
+      ProgressBar_verify ${CNT} ${T_END} ${S_CNT} ${F_CNT} ${AMT_DIF}
+      [ $SNAPSHOT_BREAK -eq $CNT ] && break;
+    done < <( cat $SNAPSHOT_FILE | sed "s/\"//g" )
+    FR_AMT=$($CLE get currency balance eosio.token eosio | sed "s/ EOS//g")
+    echo
+    echo
+    echo "################################################################################"
+    echo 
+    echo "   - Snapshot cccount count : $(cat $SNAPSHOT_FILE | wc -l)"
+    echo "   - Check account count    : ${CNT} "
+    echo "   - Migration All amount   : $C_AMT EOS"
+    echo "   - Snapshot All amount    : $S_AMT EOS"
+    echo "   - EOSIO Account Balance  : ${FR_AMT} EOS"
+    echo "   - EOSIO Balance + TRansfer Balance = 1000000000"
+    echo "     ==>  $FR_AMT + $C_AMT = "$(echo "scale=5;$FR_AMT+$C_AMT"|bc)
+    echo "   - Migration token Verify : $AMT_DIF EOS (0 is verify success)"
+    echo 
+    echo "################################################################################"
+    echo 
+    echo 
+  fi 
+  rocket_goto_moon
+}
+
+rocket_goto_moon () { 
+  echo "                                      #"
+  sleep 0.1
+  echo "                                     ###"
+  sleep 0.1
+  echo "                                    #####"
+  sleep 0.1
+  echo "                                   #######"
+  sleep 0.1
+  echo "                                  #########"
+  sleep 0.1
+  echo "                                  #########"
+  sleep 0.1
+  echo "                                  ##     ##"
+  sleep 0.1
+  echo "                                  ## ######"
+  sleep 0.1
+  echo "                                  ##     ##"
+  sleep 0.1
+  echo "                                  ## ######"
+  sleep 0.1
+  echo "                                  ##     ##"
+  sleep 0.1
+  echo "                                  #########"
+  sleep 0.1
+  echo "                                  #########"
+  sleep 0.1
+  echo "                                  ##     ##"
+  sleep 0.1
+  echo "                                  #  ###  #"
+  sleep 0.1
+  echo "                                  #  ###  #"
+  sleep 0.1
+  echo "                                  #  ###  #"
+  sleep 0.1
+  echo "                                  #  ###  #"
+  sleep 0.1
+  echo "                                  ##     ##"
+  sleep 0.1
+  echo "                                  #########"
+  sleep 0.1
+  echo "                                 ###########"
+  sleep 0.1
+  echo "                                ####      ###"
+  sleep 0.1
+  echo "                               ###  ##########"
+  sleep 0.1
+  echo "                              #####       #####"
+  sleep 0.1
+  echo "                             ############  #####"
+  sleep 0.1
+  echo "                            #######       #######"
+  sleep 0.1
+  echo "                           #######################"
+  sleep 0.1
+  echo "                          #########################"
+  sleep 0.1
+  echo "                                #############"
+  sleep 0.1
+  echo "                               ###############"
+  sleep 0.1
+  echo "                                 ###########"
+  sleep 0.1
+  echo "                                  #########"
+  sleep 0.1
+  echo "                                   #######"
+  sleep 0.1
+  echo "                                    #####"
+  sleep 0.1
+  echo "                                     ### "
+  sleep 0.1
+  echo "                                      #  "
+  sleep 0.1
+  echo "                                      #  "
+  sleep 0.1
+  echo "                                      #  "
+  sleep 0.1
+  echo "                                      #  "
+  sleep 0.1
+  echo "                                      #  "
+  sleep 0.1
 }
 
 node_svc_check () {
@@ -454,6 +666,18 @@ init_boot_node () {
   -e "s/__BOOT_P2P__/$BOOT_P2P/g" \
   -e "s/__PUBKEY__/$PUB_KEY/g" < $DATA_DIR/template/config.boot  > $DATA_DIR/boot/config.ini
 
+  # Check BNET Enable
+  if [ $BNET_USE -eq 1 ]
+  then
+    BNET_THREAD=$(($(cat /proc/cpuinfo | grep processor | wc -l)/2))
+    [ $BNET_THREAD -eq 0 ] && BNET_THREAD=1
+    echo 'plugin = eosio::bnet_plugin
+bnet-endpoint = 0.0.0.0:'$BNET_PORT'
+bnet-threads = '$BNET_THREAD'
+bnet-connect = localhost:'$BNET_PORT'
+bnet-no-trx = false' >> $DATA_DIR/boot/config.ini
+  fi
+
   # SET Genesis.json for boot node
   sed -e "s/__PUBKEY__/$PUB_KEY/g" \
   -e "s/__INIT_DATE__/$INIT_DATE/g" < $DATA_DIR/template/genesis.boot > $DATA_DIR/boot/genesis.json
@@ -504,11 +728,11 @@ init_boot_node () {
   echo_ret "  -- Set Contract eosio.msig :" $?
   
   # Create Token
-  $CLE push action eosio.token create '[ "eosio", "10000000000.0000 '$CUR_SYM'", 0, 0, 0]' -p eosio.token  >> $DATA_DIR/boot/stdout.txt 2>&1
+  $CLE push action eosio.token create '[ "eosio", "500000000000.0000 '$CUR_SYM'", 0, 0, 0]' -p eosio.token  >> $DATA_DIR/boot/stdout.txt 2>&1
   echo_ret "  -- Create EOS Token :" $?
 
   # Issue Token
-  $CLE push action eosio.token issue '["eosio","1000000000.0000 '$CUR_SYM'","Inittialize EOS Token"]' -p eosio  >> $DATA_DIR/boot/stdout.txt 2>&1
+  $CLE push action eosio.token issue '["eosio","1000100000.0000 '$CUR_SYM'","Inittialize EOS Token"]' -p eosio  >> $DATA_DIR/boot/stdout.txt 2>&1
   echo_ret "  -- Issue EOS Token to eosio :" $?
 
   # Set Appointment Node on bootnode (it's for test only)
@@ -551,9 +775,37 @@ init_boot_node () {
   fi
 
   # Migrate ERC-20 Token to EOS Coin on mainnet
-  [ $LOAD_SNAPSHOT -eq 1 ] && migration_snapshot
-  echo
+  if [ $LOAD_SNAPSHOT -eq 1 ]; then
+    migration_snapshot
+    if [ $SKIP_VERIFY -eq 0 ]; then 
+      migration_verify
+    fi
+  fi
 
+  # Resign
+  if [ $RESIGN -eq 1 ]; then 
+    # Check Load SNAPSHOT
+    if [ $LOAD_SNAPSHOT -eq 1 ]; then
+      # Resign Appointment account
+      for INF in a b c d e f g h i j k l m n o p q r s t u;do
+        resign_trx ${_AP_PREFIX}${INF}
+      done
+      # Resign System account
+      for _account_name in $_SYSTEM_ACCOUNT; do
+        resign_trx ${_account_name}
+      done
+      # Resign eosio account
+      resign_trx eosio
+    else
+      # Resign nead to enable snapshot config 
+      echo "  --------------------------------------------------------------------"
+      echo "   If you want to resign system account,"
+      echo "   plaese change LOAD_SNAPSHOT flag set 1 first"
+      echo "  --------------------------------------------------------------------"
+    fi
+  fi
+ 
+  echo
   echo "  -- Check $CUR_SYM Token"
   echo "================================================================================"
   echo " Account : eosio / currency : $($CLE get currency balance eosio.token eosio $CUR_SYM)"
@@ -562,6 +814,12 @@ init_boot_node () {
   echo "================================================================================"
   $CLE get info
   echo "================================================================================"
+}
+
+resign_trx () { 
+  $CLE push action eosio updateauth '{"account": "'$1'", "permission": "owner",  "parent": "",  "auth": { "threshold": 1, "keys": [], "waits": [], "accounts": [{ "weight": 1, "permission": {"actor": "eosio", "permission": "active"} }] } } ' -p $1@owner >> $DATA_DIR/boot/stdout.txt 2>&1
+  $CLE push action eosio updateauth '{"account": "'$1'", "permission": "active",  "parent": "owner",  "auth": { "threshold": 1, "keys": [], "waits": [], "accounts": [{ "weight": 1, "permission": {"actor": "eosio", "permission": "active"} }] } }' -p $1@active >> $DATA_DIR/boot/stdout.txt 2>&1
+  echo_ret "  -- Resign ${1} account : " $?
 }
 
 setup_env () {

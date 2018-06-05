@@ -6,13 +6,10 @@ EOS Private Network Tester는 DAPP을 개발하는 개발자, EOS Booting부터 
 간단한(?) 설정을 통해 Testnet을 구성하고 이를 테스트 할 수 있도록 구성되었습니다. 
 실제 EOSeoul의 Portal의 경우 이 테스트 스크립트를 이용하여 Booting하고 BP 노드를 구성하여 사용 하고 있습니다. 
 
-### Announce
-[dawn-v4.2.0]: https://github.com/EOSIO/eos/releases "DAWN-4.2.0" 릴리즈가 발표되었습니다.
-Nodeos 실행에 대한 부분과 관련하여 변경된 내용이 있으므로, 꼭 릴리즈 업데이트 내용을 확인하여 주시기 바랍니다. 
-
 ### EOS Source information
-* Release : dawn-v4.1.1 release
+* Release : v1.0.1
 * OS : Ubuntu 16.04
+* Requirement : jq [download](https://stedolan.github.io/jq/download/)
 
 ### Quick Start
 ```
