@@ -13,7 +13,7 @@ In case of EOSeoul portal, we used this test script to configure the BP node and
 
 ### Quick Start
 ```
-git clone http://github.com/eoseoul/testnet ./testnet
+git clone https://github.com/eoseoul/testnetbuilder ./testnet
 vi node_setup.conf 
 # modify for environment
 ./node_setup.sh testnet

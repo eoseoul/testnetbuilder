@@ -13,7 +13,7 @@ EOS Private Network Tester는 DAPP을 개발하는 개발자, EOS Booting부터 
 
 ### Quick Start
 ```
-git clone http://github.com/eoseoul/testnet ./testnet
+git clone https://github.com/eoseoul/testnetbuilder ./testnet
 vi node_setup.conf 
 # 각 환경에 맞게 수정
 ./node_setup.sh testnet
