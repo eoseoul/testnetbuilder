@@ -3,31 +3,33 @@ DATADIR=__DATA__
 BINDIR=__BIN__
 PROG=__PROG__
 
-echo_s ()
-{
-  printf "\033[1;32m[ Success ]\033[0m\n"
-}
-echo_f ()
-{
-  printf "\033[1;31m[ failed ]\033[0m\n"
-}
-echo_fx ()
-{
-  printf "\033[1;31m[ failed ]\033[0m\n";
-  exit 1;
+print_out() {
+  if [ $1 -eq 1 ]; then
+    printf '\033[1;39m%-75s\033[m \033[1;31m%-25s\033[m\n' " $2" "[FAILED]"
+  elif [ $1 -eq 2 ]; then
+    printf '\033[1;39m%-75s\033[m \033[1;39m%-25s\033[m\n' " $2" "[SKIP]"
+  else
+    printf '\033[1;39m%-75s\033[m \033[1;32m%-25s\033[m\n' " $2" "[OK]"
+  fi
 }
 
 _start() {
   if [ -f ${DATADIR}/${PROG}.pid ]; then
     _pid=`cat ${DATADIR}/${PROG}.pid`
     if [ -d "/proc/${_pid}" ]; then
-      echo "   --- $(basename $DATADIR) node is running now."
+      _stop
       return 1
     fi
   fi
-  echo -ne "   --- Starting Node - $(basename $DATADIR) : "
+  if [ $PROG == "nodeos" ]; then
+    if [ ! -d ${DATADIR}/blocks ]; then
+      $BINDIR/${PROG} --data-dir $DATADIR --config-dir $DATADIR --delete-all-blocks --genesis-json $DATADIR/genesis.json "$@" >> $DATADIR/stdout.txt 2>> $DATADIR/stderr.txt & echo $! > $DATADIR/${PROG}.pid
+      print_out $? "Initial Start $(basename $DATADIR) $PROG"
+      return 0
+    fi
+  fi
   $BINDIR/${PROG} --data-dir $DATADIR --config-dir $DATADIR "$@" >> $DATADIR/stdout.txt 2>> $DATADIR/stderr.txt & echo $! > $DATADIR/${PROG}.pid
-  [ $? -eq 0 ] && echo_s || echo_f
+  print_out $? "Start $(basename $DATADIR) $PROG"
 }
 
 _stop() {
@@ -35,13 +37,11 @@ _stop() {
     _pid=`cat ${DATADIR}/${PROG}.pid`
     kill ${_pid}
     rm -r $DATADIR"/${PROG}.pid"
-    echo -ne "   --- Stoping ${PROG} - $(basename $DATADIR) : "
     while true; do
       [ ! -d "/proc/$_pid/fd" ] && break
-      echo -ne ". "
       sleep 1
     done
-    echo_s 
+    print_out 0 "Stop $(basename $DATADIR) $PROG"
   fi
 }
 
@@ -51,9 +51,6 @@ case "$1" in
         ;;
     stop)
         _stop
-        ;;
-    genenesis)
-        _genesis
         ;;
     restart)
         _stop
