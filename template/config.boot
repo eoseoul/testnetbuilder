@@ -1,13 +1,14 @@
 
 ### Defualt config 
 blocks-dir = "blocks"
-genesis-json = ./genesis.json
+#genesis-json = ./genesis.json
 chain-state-db-size-mb = 2048
 reversible-blocks-db-size-mb = 340
 contracts-console = false
 access-control-allow-credentials = false
 sync-fetch-span = 100
 max-implicit-request = 1500
+wasm-runtime=wavm
 
 # actor-whitelist =
 # actor-blacklist =
@@ -16,6 +17,7 @@ max-implicit-request = 1500
 # filter-on =
 # https-client-root-cert =
 
+http-validate-host = false
 https-client-validate-peers = 1
 http-server-address = 127.0.0.1:__BOOT_HTTP__
 p2p-listen-endpoint = 0.0.0.0:__BOOT_P2P__
@@ -35,13 +37,12 @@ network-version-match = 1
 
 enable-stale-production = true
 #pause-on-startup = false
-max-transaction-time = 30
+max-transaction-time = 100000
 max-irreversible-block-age = -1
 
 # Enable block production with the testnet producers
 producer-name = eosio
 signature-provider = __PUBKEY__=KEY:__PRIVKEY__
-private-key = ["__PUBKEY__","__PRIVKEY__"]
 # Appointment Producer
 producer-name = appointnodea
 producer-name = appointnodeb
