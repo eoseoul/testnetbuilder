@@ -7,7 +7,7 @@ EOS Private Network Tester는 DAPP을 개발하는 개발자, EOS Booting부터 
 실제 EOSeoul의 Portal의 경우 이 테스트 스크립트를 이용하여 Booting하고 BP 노드를 구성하여 사용 하고 있습니다. 
 
 ### EOS Source information
-* Release : v1.2.1
+* Release : v1.3.0
 * OS : Ubuntu 16.04
 * Requirement : jq [download](https://stedolan.github.io/jq/download/)
 

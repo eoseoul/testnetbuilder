@@ -1,0 +1,43 @@
+# Defualt config 
+blocks-dir = "blocks"
+chain-state-db-size-mb = 8192
+reversible-blocks-db-size-mb = 340
+contracts-console = false
+access-control-allow-credentials = false
+sync-fetch-span = 100
+max-implicit-request = 1500
+
+
+https-client-validate-peers = 1
+http-server-address = 127.0.0.1:8888
+p2p-listen-endpoint = 0.0.0.0:9876
+p2p-server-address =
+p2p-peer-address =
+p2p-max-nodes-per-host = 1
+
+agent-name = "EOS Test Agent"
+allowed-connection = any
+# peer-key =
+# peer-private-key =
+max-clients = 25
+connection-cleanup-period = 30
+network-version-match = 0
+
+enable-stale-production = false
+pause-on-startup = false
+max-transaction-time = 30
+max-irreversible-block-age = -1
+# producer-name =
+producer-name = eosio
+signature-provider = EOS6MRyAjQq8ud7hVNYcfnVPJqcVpscN5So8BhtHuGYqET5GDW5CV=KEY:5KQwrPbwdL6PhXujxW37FSSQZ1JiwsST4cqQzDeyXtP79zkvFD3
+
+# BNET Config
+bnet-endpoint = 0.0.0.0:4321
+bnet-threads = 
+bnet-connect =
+bnet-no-trx = false
+
+# eosio-key =
+# plugin =
+plugin = eosio::chain_api_plugin
+plugin = eosio::history_api_plugin

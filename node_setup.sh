@@ -112,9 +112,9 @@ check_os () {
 }
 
 source_check () { 
-  DPKG="jq bc" 
+  DPKG="jq" 
   for pkg in $DPKG; do 
-    if [ -z $( dpkg -s $pkg 2>/dev/null | grep "Status" | awk '{print $4}') ]; then
+    if [ -z $( dpkg -s jq 2>/dev/null | grep "Status" | awk '{print $4}') ]; then
       sudo apt-get -y install $pkg
       echo_ret "-- Check Required Package" $?
     fi
@@ -186,7 +186,7 @@ do
     # Create new BP config
     make_dir $DATA_DIR/td_node_${PNAME}
     # Create BP key
-    $CLE create key --file $KEY_DIR/$PNAME.bpkey > /dev/null 2>&1
+    $CLE create key --file $KEY_DIR/$PNAME.bpkey >> /dev/null  2>&1
     PUB_KEY=$(cat $KEY_DIR/$PNAME.bpkey | grep Public | awk '{print $3}')
     PRIV_KEY=$(cat $KEY_DIR/$PNAME.bpkey | grep Private | awk '{print $3}')
     # Set config.ini for BP node
@@ -217,7 +217,7 @@ do
     $CLE system newaccount --buy-ram-kbytes 1024 --stake-net "10000.0000 ${CUR_SYM}" --stake-cpu "10000.0000 ${CUR_SYM}" eosio $PNAME $PUB_KEY $PUB_KEY >> $DATA_DIR/td_node_$PNAME/stdout.txt 2>&1
     echo_ret "  -- Create account - $PNAME " $?
     
-    $CLE wallet create -n $PNAME --file $KEY_DIR/$PNAME.wpk > /dev/null 2>&1
+    $CLE wallet create -n $PNAME --file $KEY_DIR/$PNAME.wpk >> /dev/null  2>&1
     echo_ret "  -- Create Wallet : " $?
 
     $CLE wallet import -n $PNAME --private-key $PRIV_KEY >> $DATA_DIR/td_node_$PNAME/stdout.txt 2>&1
@@ -630,7 +630,7 @@ init_boot_node () {
     echo_ret "  -- Make Boot($BOOT_HOST:$BOOT_HTTP)node directory : " $?
   fi
 
-  $CLE create key --file  $DATA_DIR/boot/boot.bpkey > /dev/null 2>&1
+  $CLE create key --file $DATA_DIR/boot/boot.bpkey >> /dev/null  2>&1
   [ -f $DATA_DIR/boot/boot.bpkey ] &&  echo_ret "  -- Create eosio acount Keys : " 0 || echo -ne "  -- Create eosio acount Keys : " 1
 
   INIT_DATE=$(date +"%Y-%m-01T00:00:00")
@@ -671,7 +671,7 @@ bnet-no-trx = false' >> $DATA_DIR/boot/config.ini
   #--genesis-json $DATA_DIR/boot/genesis.json
   sleep 2
 
-  $CLE wallet create --file  $DATA_DIR/boot/boot.wpk > /dev/null 2>&1
+  $CLE wallet create --file $DATA_DIR/boot/boot.wpk >> /dev/null  2>&1
   echo_ret "  -- Create eosio Wallet : " $?
   
   $CLE wallet import --private-key "$PRIV_KEY" >> $DATA_DIR/boot/stdout.txt 2>&1
@@ -683,7 +683,7 @@ bnet-no-trx = false' >> $DATA_DIR/boot/config.ini
   # Create System Account 
   for _account_name in $_SYSTEM_ACCOUNT;
   do
-    $CLE wallet create -n ${_account_name} --file $DATA_DIR/boot/${_account_name}.wpk > /dev/null 2>&1
+    $CLE wallet create -n ${_account_name} --file $DATA_DIR/boot/${_account_name}.wpk >> /dev/null  2>&1
     echo_ret "  -- Create ${_account_name} Wallet : " $?
 
     $CLE wallet import -n ${_account_name} --private-key "$PRIV_KEY" >> $DATA_DIR/boot/stdout.txt 2>&1

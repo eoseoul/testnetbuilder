@@ -43,6 +43,7 @@ max-irreversible-block-age = -1
 # Enable block production with the testnet producers
 producer-name = eosio
 signature-provider = __PUBKEY__=KEY:__PRIVKEY__
+private-key = ["__PUBKEY__","__PRIVKEY__"]
 # Appointment Producer
 producer-name = appointnodea
 producer-name = appointnodeb
@@ -66,11 +67,6 @@ producer-name = appointnodes
 producer-name = appointnodet
 producer-name = appointnodeu
 
-# Wallet config
-keosd-provider-timeout = 5
-txn-reference-block-lag = 0
-wallet-dir = "."
-unlock-timeout = 900
 
 # BNET Config
 #__BNET_PLUGIN__
